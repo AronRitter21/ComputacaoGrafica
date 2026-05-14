@@ -12,6 +12,7 @@
 #include <fstream>
 #include <sstream>
 #include <vector>
+#include <time.h>
 
 using namespace std;
 
@@ -34,13 +35,11 @@ using namespace std;
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mode);
 
 int nVertices = 36;
-int nVertices2 = 15750;
 string cubePath = "../assets/Modelos3D/Cube.obj";
 string monkeyPath = "../assets/Modelos3D/Suzanne.obj";
 
 // Protótipos das funções
 int setupShader();
-int setupGeometry();
 int loadSimpleOBJ(string filePath, int &nVertices);
 
 // Dimensões da janela (pode ser alterado em tempo de execução)
@@ -68,8 +67,20 @@ const GLchar *fragmentShaderSource = "#version 450\n"
 									 "color = finalColor;\n"
 									 "}\n\0";
 
+// Estrutura para armazenar o estado de cada objeto
+struct ObjetoTransformacao {
+	float posX = 0;
+	float posY = 0;
+	float tamanho = 0.5f;
+	bool rotateX = false;
+	bool rotateY = false;
+	bool rotateZ = false;
+};
+
+ObjetoTransformacao objetos[2]; // Array para os dois objetos
 bool rotateX = false, rotateY = false, rotateZ = false;
 float posX = 0, posY = 0, tamanho = 0.5;
+int objetoSelecionado = 0;
 // Função MAIN
 int main()
 {
@@ -117,8 +128,9 @@ int main()
 	GLuint shaderID = setupShader();
 
 	// Gerando um buffer simples, com a geometria de um triângulo
-	GLuint cubeVAO = loadSimpleOBJ(cubePath, nVertices);
-	GLuint monkeyVAO = loadSimpleOBJ(monkeyPath, nVertices2);
+	GLuint VAO[2]; 
+	VAO[0] = loadSimpleOBJ(cubePath, nVertices);
+	VAO[1] = loadSimpleOBJ(monkeyPath, nVertices);
 
 	glUseProgram(shaderID);
 
@@ -130,6 +142,9 @@ int main()
 
 	glEnable(GL_DEPTH_TEST);
 
+	objetos[0].posX = -0.5f;
+	objetos[1].posX = +0.5f;
+
 	while (!glfwWindowShouldClose(window))
 	{
 		// Checa se houveram eventos de input (key pressed, mouse moved etc.) e chama as funções de callback correspondentes
@@ -140,46 +155,59 @@ int main()
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		glLineWidth(10);
-		glPointSize(20);
+		glPointSize(0);
 
 		float angle = (GLfloat)glfwGetTime();
 
-		model = glm::mat4(1);
-		if (rotateX)
+		// Renderiza ambos os objetos
+		for (int i = 0; i < 2; i++)
 		{
-			model = glm::rotate(model, angle, glm::vec3(1.0f, 0.0f, 0.0f));
+			glm::mat4 model = glm::mat4(1);
+			
+			// Aplica transformações apenas ao objeto selecionado
+			if (i == objetoSelecionado)
+			{
+				// Translação do objeto selecionado (primeira)
+				model = glm::translate(model, glm::vec3(objetos[i].posX, objetos[i].posY, 0.0f));
+				
+				// Rotações do objeto selecionado (segunda - no eixo local)
+				if (objetos[i].rotateX)
+				{
+					model = glm::rotate(model, angle, glm::vec3(1.0f, 0.0f, 0.0f));
+				}
+				else if (objetos[i].rotateY)
+				{
+					model = glm::rotate(model, angle, glm::vec3(0.0f, 1.0f, 0.0f));
+				}
+				else if (objetos[i].rotateZ)
+				{
+					model = glm::rotate(model, angle, glm::vec3(0.0f, 0.0f, 1.0f));
+				}
+				
+				// Escala do objeto selecionado (terceira)
+				model = glm::scale(model, glm::vec3(objetos[i].tamanho, objetos[i].tamanho, objetos[i].tamanho));
+			}
+			else
+			{
+				// Objeto não selecionado mantém sua última posição
+				model = glm::translate(model, glm::vec3(objetos[i].posX, objetos[i].posY, 0.0f));
+				model = glm::scale(model, glm::vec3(objetos[i].tamanho, objetos[i].tamanho, objetos[i].tamanho));
+			}
+
+			glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+			
+			// Desenha o objeto
+			glBindVertexArray(VAO[i]);
+			glDrawArrays(GL_TRIANGLES, 0, nVertices);
+			glDrawArrays(GL_POINTS, 0, nVertices);
+			glBindVertexArray(0);
 		}
-		else if (rotateY)
-		{
-			model = glm::rotate(model, angle, glm::vec3(0.0f, 1.0f, 0.0f));
-		}
-		else if (rotateZ)
-		{
-			model = glm::rotate(model, angle, glm::vec3(0.0f, 0.0f, 1.0f));
-		}
-
-		model = glm::translate(model, glm::vec3(posX, posY, 0.0f));
-		model = glm::scale(model, glm::vec3(tamanho, tamanho, tamanho));
-
-		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-		// Chamada de desenho - drawcall
-		// Poligono Preenchido - GL_TRIANGLES
-
-		// glBindVertexArray(cubeVAO);
-		glBindVertexArray(monkeyVAO);
-		glDrawArrays(GL_TRIANGLES, 0, nVertices);
-
-		// Chamada de desenho - drawcall
-		// CONTORNO - GL_LINE_LOOP
-
-		glDrawArrays(GL_POINTS, 0, nVertices);
-		glBindVertexArray(0);
 
 		// Troca os buffers da tela*/
 		glfwSwapBuffers(window);
 	}
 	// Pede pra OpenGL desalocar os buffers
-	glDeleteVertexArrays(1, &cubeVAO);
+	glDeleteVertexArrays(2, VAO);
 	// Finaliza a execução da GLFW, limpando os recursos alocados por ela
 	glfwTerminate();
 	return 0;
@@ -196,58 +224,68 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
 	// Rotação
 	if (key == GLFW_KEY_X && action == GLFW_PRESS)
 	{
-		rotateX = true;
-		rotateY = false;
-		rotateZ = false;
+		objetos[objetoSelecionado].rotateX = true;
+		objetos[objetoSelecionado].rotateY = false;
+		objetos[objetoSelecionado].rotateZ = false;
 	}
 
 	if (key == GLFW_KEY_Y && action == GLFW_PRESS)
 	{
-		rotateX = false;
-		rotateY = true;
-		rotateZ = false;
+		objetos[objetoSelecionado].rotateX = false;
+		objetos[objetoSelecionado].rotateY = true;
+		objetos[objetoSelecionado].rotateZ = false;
 	}
 
 	if (key == GLFW_KEY_Z && action == GLFW_PRESS)
 	{
-		rotateX = false;
-		rotateY = false;
-		rotateZ = true;
+		objetos[objetoSelecionado].rotateX = false;
+		objetos[objetoSelecionado].rotateY = false;
+		objetos[objetoSelecionado].rotateZ = true;
 	}
 
 	// Transladação
 	if (key == GLFW_KEY_W && action == GLFW_PRESS)
 	{
-		posY += 0.1f;
+		objetos[objetoSelecionado].posY += 0.1f;
 	}
 
 	if (key == GLFW_KEY_S && action == GLFW_PRESS)
 	{
-		posY -= 0.1f;
+		objetos[objetoSelecionado].posY -= 0.1f;
 	}
 
 	if (key == GLFW_KEY_A && action == GLFW_PRESS)
 	{
-		posX -= 0.1f;
+		objetos[objetoSelecionado].posX -= 0.1f;
 	}
 
 	if (key == GLFW_KEY_D && action == GLFW_PRESS)
 	{
-		posX += 0.1f;
+		objetos[objetoSelecionado].posX += 0.1f;
 	}
 
 	if (key == GLFW_KEY_MINUS && action == GLFW_PRESS)
 	{
-		if (tamanho > 0.1f){
-			tamanho -= 0.1f;
+		if (objetos[objetoSelecionado].tamanho > 0.1f){
+			objetos[objetoSelecionado].tamanho -= 0.1f;
 		}
 	}
 
 	if (key == GLFW_KEY_EQUAL && action == GLFW_PRESS)
 	{
-		if (tamanho < 1.9f){
-			tamanho += 0.1f;
+		if (objetos[objetoSelecionado].tamanho < 1.9f){
+			objetos[objetoSelecionado].tamanho += 0.1f;
 		}
+	}
+
+	// Seleção do objeto
+	if (key == GLFW_KEY_1 && action == GLFW_PRESS)
+	{
+		objetoSelecionado = 0;
+	}
+	if (key == GLFW_KEY_2 && action == GLFW_PRESS)
+	{
+		objetoSelecionado = 1;
 	}
 }
 
@@ -303,132 +341,15 @@ int setupShader()
 	return shaderProgram;
 }
 
-// Esta função está bastante harcoded - objetivo é criar os buffers que armazenam a
-// geometria de um triângulo
-// Apenas atributo coordenada nos vértices
-// 1 VBO com as coordenadas, VAO com apenas 1 ponteiro para atributo
-// A função retorna o identificador do VAO
-int setupGeometry()
-{
-	// Aqui setamos as coordenadas x, y e z do triângulo e as armazenamos de forma
-	// sequencial, já visando mandar para o VBO (Vertex Buffer Objects)
-	// Cada atributo do vértice (coordenada, cores, coordenadas de textura, normal, etc)
-	// Pode ser arazenado em um VBO único ou em VBOs separados
-	GLfloat vertices[] = {
-
-		// Base 2 triângulos
-		// x    y    z    r    g    b
-		-0.5, -0.5, -0.5, 0.5, 0.0, 0.0,
-		-0.5, -0.5, 0.5, 0.5, 0.0, 0.0,
-		0.5, -0.5, -0.5, 0.5, 0.0, 0.0,
-
-		-0.5, -0.5, 0.5, 0.5, 0.0, 0.5,
-		0.5, -0.5, 0.5, 0.5, 0.0, 0.5,
-		0.5, -0.5, -0.5, 0.5, 0.0, 0.5,
-
-		// Cima 2 triângulos
-		// x    y    z    r    g    b
-		-0.5, +0.5, -0.5, 0.0, 0.0, 0.5,
-		-0.5, +0.5, 0.5, 0.0, 0.0, 0.5,
-		0.5, +0.5, -0.5, 0.0, 0.0, 0.5,
-
-		-0.5, +0.5, 0.5,0.0, 0.5, 0.5,
-		0.5, +0.5, 0.5, 0.0, 0.5, 0.5,
-		0.5, +0.5, -0.5,0.0, 0.5, 0.5,
-
-		// Esquerda 2 triângulos
-		// x    y    z    r    g    b
-		-0.5, -0.5, 0.5, 0.5, 0.5, 0.5,
-		-0.5, -0.5,-0.5, 0.5, 0.5, 0.5,
-		-0.5, 0.5, 0.5,  0.5, 0.5, 0.5,
-
-		-0.5, -0.5, -0.5,0.7, 0.3, 0.8,
-		-0.5, 0.5, -0.5, 0.7, 0.3, 0.8,
-		-0.5, 0.5, 0.5,  0.7, 0.3, 0.8,
-
-		// Direita 2 triângulos
-		// x    y    z    r    g    b
-		0.5, -0.5, 0.5, 1.0, 1.0, 0.0,
-		0.5, -0.5, -0.5, 1.0, 1.0, 0.0,
-		0.5, 0.5, 0.5, 1.0, 1.0, 0.0,
-
-		0.5, -0.5, -0.5, 0.0, 1.0, 0.5,
-		0.5, 0.5, -0.5, 0.0, 1.0, 0.5,
-		0.5, 0.5, 0.5, 0.0, 1.0, 0.5,
-
-		// Fundo 2 triângulos
-		// x    y    z    r    g    b
-		-0.5, -0.5, 0.5, 0.0, 0.0, 0.0,
-		-0.5, 0.5, 0.5, 0.0, 0.0, 0.0,
-		0.5, -0.5, 0.5, 0.0, 0.0, 0.0,
-
-		-0.5, 0.5, 0.5, 0.9, 0.9, 0.9,
-		0.5, 0.5, 0.5, 0.9, 0.9, 0.9,
-		0.5, -0.5, 0.5, 0.9, 0.9, 0.9,
-
-		// Frente 2 triângulos
-		// x    y    z    r    g    b
-		-0.5, -0.5, -0.5, 0.3, 0.5, 0.8,
-		-0.5, 0.5, -0.5, 0.3, 0.5, 0.8,
-		0.5, -0.5, -0.5, 0.3, 0.5, 0.8,
-
-		-0.5, 0.5, -0.5, 0.8, 0.5, 0.3,
-		0.5, 0.5, -0.5, 0.8, 0.5, 0.3,
-		0.5, -0.5, -0.5, 0.8, 0.5, 0.3,
-
-	};
-
-	GLuint VBO, VAO;
-
-	// Geração do identificador do VBO
-	glGenBuffers(1, &VBO);
-
-	// Faz a conexão (vincula) do buffer como um buffer de array
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-
-	// Envia os dados do array de floats para o buffer da OpenGl
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-	// Geração do identificador do VAO (Vertex Array Object)
-	glGenVertexArrays(1, &VAO);
-
-	// Vincula (bind) o VAO primeiro, e em seguida  conecta e seta o(s) buffer(s) de vértices
-	// e os ponteiros para os atributos
-	glBindVertexArray(VAO);
-
-	// Para cada atributo do vertice, criamos um "AttribPointer" (ponteiro para o atributo), indicando:
-	//  Localização no shader * (a localização dos atributos devem ser correspondentes no layout especificado no vertex shader)
-	//  Numero de valores que o atributo tem (por ex, 3 coordenadas xyz)
-	//  Tipo do dado
-	//  Se está normalizado (entre zero e um)
-	//  Tamanho em bytes
-	//  Deslocamento a partir do byte zero
-
-	// Atributo posição (x, y, z)
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (GLvoid *)0);
-	glEnableVertexAttribArray(0);
-
-	// Atributo cor (r, g, b)
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (GLvoid *)(3 * sizeof(GLfloat)));
-	glEnableVertexAttribArray(1);
-
-	// Observe que isso é permitido, a chamada para glVertexAttribPointer registrou o VBO como o objeto de buffer de vértice
-	// atualmente vinculado - para que depois possamos desvincular com segurança
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-	// Desvincula o VAO (é uma boa prática desvincular qualquer buffer ou array para evitar bugs medonhos)
-	glBindVertexArray(0);
-
-	return VAO;
-}
 
 int loadSimpleOBJ(string filePATH, int &nVertices)
  {
+	srand(time(NULL));
     std::vector<glm::vec3> vertices;
     std::vector<glm::vec2> texCoords;
     std::vector<glm::vec3> normals;
     std::vector<GLfloat> vBuffer;
-    glm::vec3 color = glm::vec3(1.0, 0.0, 0.0);
+    glm::vec3 color = glm::vec3(0.0, 0.0, 0.0);
 
     std::ifstream arqEntrada(filePATH.c_str());
     if (!arqEntrada.is_open()) 
@@ -464,6 +385,9 @@ int loadSimpleOBJ(string filePATH, int &nVertices)
         } 
         else if (word == "f")
 		 {
+			color.r = (rand() % 100 + 1) / 100.0f;
+			color.g = (rand() % 100 + 1) / 100.0f;
+			color.b = (rand() % 100 + 1) / 100.0f;
             while (ssline >> word) 
 			{
                 int vi = 0, ti = 0, ni = 0;
