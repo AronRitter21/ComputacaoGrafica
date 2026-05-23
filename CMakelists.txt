@@ -50,6 +50,8 @@ set(EXERCISES
     Desafio2
     Vivencial1
     Desafio3
+    Vivencial2
+    CuboIluminacao
 )
 
 add_compile_options(-Wno-pragmas)
