@@ -22,3 +22,12 @@ C:\projeto_java\ComputacaoGrafica\src\Desafio3.cpp
 
 # Desafio 4
 C:\projeto_java\ComputacaoGrafica\src\Vivencial2.cpp
+
+# Vivencial 2
+C:\projeto_java\ComputacaoGrafica\src\Vivencial2.cpp
+
+Teclas Rotação: ZXY
+Teclas Translação: WASD
+Teclas Diminuir/Aumentar: -/= 
+Alternar entre Objetos: spaço
+Ligara e desligar Luzes: 1, 2 e 3

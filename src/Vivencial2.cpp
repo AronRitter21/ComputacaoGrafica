@@ -43,6 +43,12 @@ struct ObjetoTransformacao
     glm::vec3 cor;
 };
 
+struct Luz
+{
+    glm::vec3 posicao;
+    glm::vec3 cor;
+};
+
 // Dimensões da janela (pode ser alterado em tempo de execução)
 const GLuint WIDTH = 1000, HEIGHT = 1000;
 
@@ -51,7 +57,12 @@ float posX = 0, posY = 0, tamanho = 0.1f;
 int objetoSelecionado = 0;
 
 std::vector<ObjetoTransformacao> objetos; // Array para os dois objetos
+std::vector<Luz> luzes;                   // Array para as luzes
 
+//Booleano de luzes ligadas
+bool keyLightOn = false;   // Tecla 1 
+bool fillLightOn = false;   // Tecla 2
+bool backlightOn = false;   // Tecla 3
 
 // Protótipo da função de callback de teclado
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mode);
@@ -99,56 +110,69 @@ const GLchar *vertexShaderSource = "#version 450\n"
                                    "}\0";
 
 // Códifo fonte do Fragment Shader (em GLSL): ainda hardcoded
-const GLchar *fragmentShaderSource = "#version 450\n"
-                                     "in vec4 finalColor;\n"
-                                     "in vec2 texCoord;\n"
-                                     "in vec4 fragPos;\n"
-                                     "in vec3 scaledNormal;\n"
+const GLchar *fragmentShaderSource = R"(
+#version 450
+    in vec4 finalColor;
+    in vec2 texCoord;
+    in vec4 fragPos;
+    in vec3 scaledNormal;
 
-                                     "out vec4 color;\n"
+    out vec4 color;
 
-                                     "uniform sampler2D tex_buffer;\n"
+    uniform sampler2D tex_buffer;
 
-                                     // Propriedades da superfície
-                                     "uniform vec3 ka;\n"
-                                     "uniform vec3 kd;\n"
-                                     "uniform vec3 ks;\n"
-                                     "uniform float q;\n"
-                                     // Propriedades da fonte de luz
-                                     "uniform vec3 lightPos;\n"
-                                     "uniform vec3 lightColor;\n"
-                                     // Posiçãoo da Câmera
-                                     "uniform vec3 cameraPos;\n"
-                                    //  "uniform float Kc;\n"
-                                    //  "uniform float Kl;\n"
-                                    //  "uniform float Kq;\n"
-                                     "void main()\n"
-                                     "{\n"
-                                        "vec3 N = normalize(scaledNormal);\n"
-                                        "vec3 V = normalize(cameraPos - vec3(fragPos));\n"
-                                        "vec3 L = normalize(lightPos - vec3(fragPos));\n"
-                                        "vec4 objectColor = texture(tex_buffer, texCoord);\n"
-                                        // Fator de Atenuação na reflexão difusa
-                                        "float dist = length(lightPos - vec3(fragPos));\n"
-                                        "float attenuation = 1.0 / (1.0 + 0.09 * dist + 0.032 * (dist * dist));\n"
+    // Propriedades da superfície
+    uniform vec3 ka;
+    uniform vec3 kd;
+    uniform vec3 ks;
+    uniform float q;
+    // Propriedades da fonte de luz
+    struct Luz {
+        vec3 posicao;
+        vec3 cor;
+        bool ligada;
+    };
+    uniform Luz luzes[3];
 
-                                        // Cálculo da parcela de iluminação ambiente
-                                        "vec3 ambient = ka * lightColor;\n"
-                                        
-                                        // Cálculo da parcela de iluminação difusa
-                                        "float diff = max(dot(N,L),0.0);\n"
-                                        "vec3 diffuse = kd * diff * lightColor * attenuation;\n"
-                                        
-                                        // Cálculo da parcela de iluminação especular
-                                        "vec3 R = normalize(reflect(-L,N));\n"
-                                        "float spec = max(dot(R,V),0.0);\n"
-                                        "spec = pow(spec,q);\n"
-                                        "vec3 specular = ks * spec * lightColor;\n"
+    // Posiçãoo da Câmera
+    uniform vec3 cameraPos;
+    //  uniform float Kc;
+    //  uniform float Kl;
+    //  uniform float Kq;
+    void main()
+    {
+        vec4 objectColor = texture(tex_buffer, texCoord);
+        vec3 N = normalize(scaledNormal);
+        vec3 V = normalize(cameraPos - vec3(fragPos));
+        vec3 result = vec3(0.0);
 
-                                        "vec3 result = (ambient + diffuse) * finalColor.rgb + specular;\n"
-
-                                        "color = vec4(result, 1.0);\n"
-                                     "}\n\0";
+        for(int i = 0; i < 3; i++)
+        {
+            if (luzes[i].ligada == false){
+                continue;    
+            } 
+            vec3 L = normalize(luzes[i].posicao - vec3(fragPos));
+            // Fator de Atenuação na reflexão difusa
+            float dist = length(luzes[i].posicao - vec3(fragPos));
+            float attenuation = 1.0 / (1.0 + 0.09 * dist + 0.032 * (dist * dist));
+    
+            // Cálculo da parcela de iluminação ambiente
+            vec3 ambient = ka * luzes[i].cor;
+        
+            // Cálculo da parcela de iluminação difusa
+            float diff = max(dot(N,L),0.0);
+            vec3 diffuse = kd * diff * luzes[i].cor * attenuation;
+        
+            // Cálculo da parcela de iluminação especular
+            vec3 R = normalize(reflect(-L,N));
+            float spec = max(dot(R,V),0.0);
+            spec = pow(spec,q);
+            vec3 specular = ks * spec * luzes[i].cor;
+        
+            result += (ambient + diffuse) * finalColor.rgb + specular;
+        }
+        color = vec4(result, 1.0);
+    })";
 
 // Função MAIN
 int main()
@@ -197,16 +221,16 @@ int main()
     GLuint shaderID = setupShader();
     glUseProgram(shaderID);
 
-
-    //Câmera
+    // Câmera
     glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
-    glm::mat4 view = glm::lookAt(cameraPos, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.3f, 1.0f, 0.0f));
+    glm::mat4 view = glm::lookAt(cameraPos, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
     glm::mat4 projection = glm::ortho(-1.0, 1.0, -1.0, 1.0, -3.0, 3.0);
 
     glUniformMatrix4fv(glGetUniformLocation(shaderID, "view"), 1, GL_FALSE, glm::value_ptr(view));
     // Matriz de projeção paralela ortográfica
     glUniformMatrix4fv(glGetUniformLocation(shaderID, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
     glUniform3fv(glGetUniformLocation(shaderID, "cameraPos"), 1, glm::value_ptr(cameraPos));
+
     // Enviar a informação de qual variável armazenará o buffer da textura
     glUniform1i(glGetUniformLocation(shaderID, "tex_buffer"), 0);
 
@@ -218,13 +242,10 @@ int main()
         return -1;
     }
 
-
-
-    
     // Gerando um buffer simples, com a geometria de um triângulo;
     int nVerticesArr[2] = {0, 0};
 
-    //Objeto 1: cubo
+    // Objeto 1: cubo
     ObjetoTransformacao objeto1;
     objeto1.VAO = loadSimpleOBJ(assetsRoot + "Modelos3D/Cube.obj", nVerticesArr[0]);
     objeto1.texID = generateTexture(assetsRoot + "tex/pixelWall.png");
@@ -246,9 +267,21 @@ int main()
     glm::vec3 kd = glm::vec3(0.6f);
     glm::vec3 ks = glm::vec3(0.5f);
     float q = 32.0f;
-    glm::vec3 lightPos = glm::vec3(-0.0, -0.8, +0.5);
 
+    Luz keyLight;
+    keyLight.posicao = glm::vec3(-1.0f, 0.0f, -1.5f);
+    keyLight.cor = glm::vec3(1.0f, 1.0f, 1.0f);
+    luzes.push_back(keyLight);
 
+    Luz fillLight;
+    fillLight.posicao = glm::vec3(1.0f, 0.0f, -1.5f);
+    fillLight.cor = glm::vec3(0.5f, 0.5f, 0.5f);
+    luzes.push_back(fillLight);
+
+    Luz backlight;
+    backlight.posicao = glm::vec3(-0.5f, 1.0f, -0.8f);
+    backlight.cor = glm::vec3(1.0f, 1.0f, 0.5f);
+    luzes.push_back(backlight);
 
     // Configuração da Atenuação ---
     // Estes valores representam uma luz que cobre uma distância de cerca de 50 unidades.
@@ -264,22 +297,32 @@ int main()
 
     glEnable(GL_DEPTH_TEST);
 
-
     while (!glfwWindowShouldClose(window))
     {
         // Checa se houveram eventos de input (key pressed, mouse moved etc.) e chama as funções de callback correspondentes
         glfwPollEvents();
 
         // Limpa o buffer de cor
-        glClearColor(0.0f, 0.0f, 0.0f, 0.0f); // cor de fundo
+		glClearColor(0.1f, 0.1f, 0.1f, 1.0f); // cor de fundo
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         glLineWidth(10);
         glPointSize(0);
 
-        //Luz
-        glUniform3fv(glGetUniformLocation(shaderID, "lightPos"), 1, glm::value_ptr(lightPos));
-        glUniform3f(glGetUniformLocation(shaderID, "lightColor"), 1.0f, 0.0f, 1.0f);
+        // Key Light
+        glUniform3fv(glGetUniformLocation(shaderID, "luzes[0].posicao"), 1, glm::value_ptr(luzes[0].posicao));
+        glUniform3fv(glGetUniformLocation(shaderID, "luzes[0].cor"), 1, glm::value_ptr(luzes[0].cor));
+        glUniform1i(glGetUniformLocation(shaderID, "luzes[0].ligada"), keyLightOn);
+
+        // Fill Light
+        glUniform3fv(glGetUniformLocation(shaderID, "luzes[1].posicao"), 1, glm::value_ptr(luzes[1].posicao));
+        glUniform3fv(glGetUniformLocation(shaderID, "luzes[1].cor"), 1, glm::value_ptr(luzes[1].cor));
+        glUniform1i(glGetUniformLocation(shaderID, "luzes[1].ligada"), fillLightOn);
+
+        // Back Light
+        glUniform3fv(glGetUniformLocation(shaderID, "luzes[2].posicao"), 1, glm::value_ptr(luzes[2].posicao));
+        glUniform3fv(glGetUniformLocation(shaderID, "luzes[2].cor"), 1, glm::value_ptr(luzes[2].cor));
+        glUniform1i(glGetUniformLocation(shaderID, "luzes[2].ligada"), backlightOn);
 
         float angle = (GLfloat)glfwGetTime();
 
@@ -289,10 +332,9 @@ int main()
             glm::mat4 model = glm::mat4(1.0f);
             // Translação
             model = glm::translate(model, objetos[i].posicao);
-            
+
             // Rotações (aplicadas se este for o objeto selecionado)
-            if (i == objetoSelecionado) {
-                
+            if (i == objetoSelecionado) {                
                 if (objetos[i].rotacao.x) model = glm::rotate(model, angle, glm::vec3(1.0f, 0.0f, 0.0f));
                 if (objetos[i].rotacao.y) model = glm::rotate(model, angle, glm::vec3(0.0f, 1.0f, 0.0f));
                 if (objetos[i].rotacao.z) model = glm::rotate(model, angle, glm::vec3(0.0f, 0.0f, 1.0f));
@@ -318,87 +360,6 @@ int main()
     // Finaliza a execução da GLFW, limpando os recursos alocados por ela
     glfwTerminate();
     return 0;
-}
-
-// Função de callback de teclado - só pode ter uma instância (deve ser estática se
-// estiver dentro de uma classe) - É chamada sempre que uma tecla for pressionada
-// ou solta via GLFW
-void key_callback(GLFWwindow *window, int key, int scancode, int action, int mode)
-{
-    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, GL_TRUE);
-
-    // Rotação
-    if (key == GLFW_KEY_X && action == GLFW_PRESS)
-    {
-        std::cout << "clique" << std::endl;
-        std::cout << objetoSelecionado << std::endl;
-
-        objetos[objetoSelecionado].rotacao.x = true;
-        objetos[objetoSelecionado].rotacao.y = false;
-        objetos[objetoSelecionado].rotacao.z = false;
-    }
-
-    if (key == GLFW_KEY_Y && action == GLFW_PRESS)
-    {
-        objetos[objetoSelecionado].rotacao.x = false;
-        objetos[objetoSelecionado].rotacao.y = true;
-        objetos[objetoSelecionado].rotacao.z = false;
-    }
-
-    if (key == GLFW_KEY_Z && action == GLFW_PRESS)
-    {
-        objetos[objetoSelecionado].rotacao.x = false;
-        objetos[objetoSelecionado].rotacao.y = false;
-        objetos[objetoSelecionado].rotacao.z = true;
-    }
-
-    // Transladação
-    if (key == GLFW_KEY_W && action == GLFW_PRESS)
-    {
-        objetos[objetoSelecionado].posicao.y += 0.1f;
-    }
-
-    if (key == GLFW_KEY_S && action == GLFW_PRESS)
-    {
-        objetos[objetoSelecionado].posicao.y -= 0.1f;
-    }
-
-    if (key == GLFW_KEY_A && action == GLFW_PRESS)
-    {
-        objetos[objetoSelecionado].posicao.x -= 0.1f;
-    }
-
-    if (key == GLFW_KEY_D && action == GLFW_PRESS)
-    {
-        objetos[objetoSelecionado].posicao.x += 0.1f;
-    }
-
-    if (key == GLFW_KEY_MINUS && action == GLFW_PRESS)
-    {
-        if (objetos[objetoSelecionado].tamanho.x > 0.1f)
-        {
-            objetos[objetoSelecionado].tamanho -= 0.1f;
-        }
-    }
-
-    if (key == GLFW_KEY_EQUAL && action == GLFW_PRESS)
-    {
-        if (objetos[objetoSelecionado].tamanho.x < 1.9f)
-        {
-            objetos[objetoSelecionado].tamanho += 0.1f;
-        }
-    }
-
-    // Seleção do objeto
-    if (key == GLFW_KEY_1 && action == GLFW_PRESS)
-    {
-        objetoSelecionado = 0;
-    }
-    if (key == GLFW_KEY_2 && action == GLFW_PRESS)
-    {
-        objetoSelecionado = 1;
-    }
 }
 
 // Esta função está basntante hardcoded - objetivo é compilar e "buildar" um programa de
@@ -612,4 +573,81 @@ GLuint loadSimpleOBJ(string filePATH, int &nVertices)
     nVertices = vBuffer.size() / 11; // x, y, z, r, g, b, nx, ny, nz, u, v (valores armazenados por vértice)
 
     return VAO;
+}
+
+// Função de callback de teclado - só pode ter uma instância (deve ser estática se
+// estiver dentro de uma classe) - É chamada sempre que uma tecla for pressionada
+// ou solta via GLFW
+void key_callback(GLFWwindow *window, int key, int scancode, int action, int mode)
+{
+    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, GL_TRUE);
+
+    // Rotação
+    if (key == GLFW_KEY_X && action == GLFW_PRESS)
+    {
+        objetos[objetoSelecionado].rotacao.x = true;
+        objetos[objetoSelecionado].rotacao.y = false;
+        objetos[objetoSelecionado].rotacao.z = false;
+    }
+
+    if (key == GLFW_KEY_Y && action == GLFW_PRESS)
+    {
+        objetos[objetoSelecionado].rotacao.x = false;
+        objetos[objetoSelecionado].rotacao.y = true;
+        objetos[objetoSelecionado].rotacao.z = false;
+    }
+
+    if (key == GLFW_KEY_Z && action == GLFW_PRESS)
+    {
+        objetos[objetoSelecionado].rotacao.x = false;
+        objetos[objetoSelecionado].rotacao.y = false;
+        objetos[objetoSelecionado].rotacao.z = true;
+    }
+
+    // Transladação
+    if (key == GLFW_KEY_W && action == GLFW_PRESS)
+    {
+        objetos[objetoSelecionado].posicao.y += 0.1f;
+    }
+
+    if (key == GLFW_KEY_S && action == GLFW_PRESS)
+    {
+        objetos[objetoSelecionado].posicao.y -= 0.1f;
+    }
+
+    if (key == GLFW_KEY_A && action == GLFW_PRESS)
+    {
+        objetos[objetoSelecionado].posicao.x -= 0.1f;
+    }
+
+    if (key == GLFW_KEY_D && action == GLFW_PRESS)
+    {
+        objetos[objetoSelecionado].posicao.x += 0.1f;
+    }
+
+    if (key == GLFW_KEY_MINUS && action == GLFW_PRESS)
+    {
+        if (objetos[objetoSelecionado].tamanho.x > 0.1f)
+        {
+            objetos[objetoSelecionado].tamanho -= 0.1f;
+        }
+    }
+
+    if (key == GLFW_KEY_EQUAL && action == GLFW_PRESS)
+    {
+        if (objetos[objetoSelecionado].tamanho.x < 1.9f)
+        {
+            objetos[objetoSelecionado].tamanho += 0.1f;
+        }
+    }
+
+    // Seleção do objeto
+    if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
+    {
+        objetoSelecionado = (objetoSelecionado == 1) ? 0 : 1;
+    }
+    if (key == GLFW_KEY_1 && action == GLFW_PRESS) keyLightOn = !keyLightOn;
+    if (key == GLFW_KEY_2 && action == GLFW_PRESS) fillLightOn = !fillLightOn;
+    if (key == GLFW_KEY_3 && action == GLFW_PRESS) backlightOn = !backlightOn;
 }
