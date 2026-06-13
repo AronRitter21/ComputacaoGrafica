@@ -31,3 +31,8 @@ Teclas Translação: WASD
 Teclas Diminuir/Aumentar: -/= 
 Alternar entre Objetos: spaço
 Ligara e desligar Luzes: 1, 2 e 3
+
+
+
+# Desafio 5
+C:\projeto_java\ComputacaoGrafica\src\Desafio5.cpp
