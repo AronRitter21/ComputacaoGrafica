@@ -36,3 +36,10 @@ Ligara e desligar Luzes: 1, 2 e 3
 
 # Desafio 5
 C:\projeto_java\ComputacaoGrafica\src\Desafio5.cpp
+
+# Desafio 6
+C:\projeto_java\ComputacaoGrafica\src\Desafio6.cpp
+
+Configuração dos pontos no C:\projeto_java\ComputacaoGrafica\assets\bezierCoordenadas.txt
+Sendo C para o Cubo e S para a Suzane
+Espaço troca o objeto em movimento.
