@@ -141,7 +141,7 @@ int main()
 	int nVerticesArr[2] = {0, 0};
 
 	objetos[0].texID = generateTexture("../assets/tex/pixelWall.png");
-	objetos[1].texID = generateTexture("../assets/tex/pixelWall.png");
+	objetos[1].texID = generateTexture("../assets/Modelos3D/Suzanne.png");
 	VAO[0] = loadSimpleOBJ(cubePath, nVerticesArr[0]);
 	VAO[1] = loadSimpleOBJ(monkeyPath, nVerticesArr[1]);
 
@@ -445,9 +445,9 @@ GLuint loadSimpleOBJ(string filePATH, int &nVertices)
 		}
 		else if (word == "f")
 		{
-			color.r = (rand() % 100 + 1) / 100.0f;
-			color.g = (rand() % 100 + 1) / 100.0f;
-			color.b = (rand() % 100 + 1) / 100.0f;
+			color.r = 1;
+			color.g = 1;
+			color.b = 1;
 			while (ssline >> word)
 			{
 				int vi = 0, ti = 0, ni = 0;

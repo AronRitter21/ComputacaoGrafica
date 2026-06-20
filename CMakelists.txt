@@ -54,6 +54,7 @@ set(EXERCISES
     CuboIluminacao
     Desafio5
     Desafio6
+    GrauB
 )
 
 add_compile_options(-Wno-pragmas)

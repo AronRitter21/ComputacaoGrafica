@@ -43,3 +43,14 @@ C:\projeto_java\ComputacaoGrafica\src\Desafio6.cpp
 Configuração dos pontos no C:\projeto_java\ComputacaoGrafica\assets\bezierCoordenadas.txt
 Sendo C para o Cubo e S para a Suzane
 Espaço troca o objeto em movimento.
+
+
+# GRAU B
+C:\projeto_java\ComputacaoGrafica\src\GrauB.cpp
+
+Configuração dos pontos no C:\projeto_java\ComputacaoGrafica\assets\bezierCoordenadas.txt
+Sendo C para o Cubo e S para a Suzane
+Espaço troca o objeto em movimento.
+Teclas Z, X e Y = rotações
+Teclas "=" e "-" para aumentarm e diminuir
+Teclas 1, 2 e 3 para as luzes

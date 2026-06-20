@@ -141,7 +141,7 @@ const GLchar *fragmentShaderSource = R"(
     //  uniform float Kq;
     void main()
     {
-        vec4 objectColor = texture(tex_buffer, texCoord);
+        vec4 objectColor = texture(tex_buffer, texCoord) * finalColor;
         vec3 N = normalize(scaledNormal);
         vec3 V = normalize(cameraPos - vec3(fragPos));
         vec3 result = vec3(0.0);
@@ -169,7 +169,7 @@ const GLchar *fragmentShaderSource = R"(
             spec = pow(spec,q);
             vec3 specular = ks * spec * luzes[i].cor;
         
-            result += (ambient + diffuse) * finalColor.rgb + specular;
+            result += (ambient + diffuse) * objectColor.rgb + specular;
         }
         color = vec4(result, 1.0);
     })";
