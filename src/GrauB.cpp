@@ -318,6 +318,8 @@ int main()
 		float time = (GLfloat)glfwGetTime();
 		deltaTime = time - lastFrame;
 		lastFrame = time;
+		
+		updateCameraPos(window);
 
 		// Atualiza a posição da câmera
 		view = glm::lookAt(camera.pos, camera.pos + camera.front, camera.up);
@@ -723,7 +725,6 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
 		}
 	}
 
-	updateCameraPos(window);
 
 	// Seleção do objeto
 	if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
@@ -753,14 +754,10 @@ void updateCameraPos(GLFWwindow *window)
 	front.z = cos(glm::radians(camera.pitch)) * sin(glm::radians(camera.yaw));
 	camera.front = glm::normalize(front);
 
-	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-		camera.pos += cameraSpeed * camera.front;
-	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-		camera.pos -= cameraSpeed * camera.front;
-	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-		camera.pos -= glm::normalize(glm::cross(camera.front, camera.up)) * cameraSpeed;
-	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-		camera.pos += glm::normalize(glm::cross(camera.front, camera.up)) * cameraSpeed;
+	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) camera.pos += cameraSpeed * camera.front;
+	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) camera.pos -= cameraSpeed * camera.front;
+	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) camera.pos -= glm::normalize(glm::cross(camera.front, camera.up)) * cameraSpeed;
+	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) camera.pos += glm::normalize(glm::cross(camera.front, camera.up)) * cameraSpeed;
 }
 
 // Callback de mouse para controle da câmera - é chamado sempre que o mouse for movido
